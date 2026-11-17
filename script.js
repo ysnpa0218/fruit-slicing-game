@@ -10,44 +10,68 @@ let isRunning = false;
 const MODEL_URL =
   "https://teachablemachine.withgoogle.com/models/mNstQrFaO/";
 
-async function initCamera() {
-  try {
-    const modelURL = MODEL_URL + "model.json";
-    const metadataURL = MODEL_URL + "metadata.json";
+async function startGame() {
+  const status = document.getElementById("hand-status");
 
-    model = await tmImage.load(modelURL, metadataURL);
+  if (isRunning) return;
+
+  score = 0;
+  level = 1;
+  lives = 3;
+  updateGameInfo();
+
+  status.textContent = "AI 모델 불러오는 중...";
+
+  try {
+    if (typeof tmImage === "undefined") {
+      throw new Error("Teachable Machine 라이브러리를 불러오지 못했습니다.");
+    }
+
+    model = await tmImage.load(
+      MODEL_URL + "model.json",
+      MODEL_URL + "metadata.json"
+    );
 
     webcam = new tmImage.Webcam(400, 300, true);
+
     await webcam.setup();
     await webcam.play();
 
-    const cameraArea = document.getElementById("camera-area");
-    cameraArea.innerHTML = "";
-    cameraArea.appendChild(webcam.canvas);
+    const area = document.getElementById("camera-area");
+    area.innerHTML = "";
+    area.appendChild(webcam.canvas);
 
     isRunning = true;
+    status.textContent = "손바닥을 보여주세요!";
     predict();
 
   } catch (error) {
-    console.error("카메라 오류:", error);
-    alert("카메라 연결 실패: " + error.message);
+    status.textContent = "연결 오류";
+    alert("오류: " + error.message);
+    console.error(error);
   }
 }
 
 async function predict() {
   if (!isRunning) return;
 
-  webcam.update();
+  try {
+    webcam.update();
 
-  const predictions = await model.predict(webcam.canvas);
+    const predictions = await model.predict(webcam.canvas);
 
-  let best = predictions.reduce((a, b) =>
-    a.probability > b.probability ? a : b
-  );
+    let best = predictions.reduce((a, b) =>
+      a.probability > b.probability ? a : b
+    );
 
-  document.getElementById("hand-status").textContent =
-    best.className + " (" +
-    Math.round(best.probability * 100) + "%)";
+    document.getElementById("hand-status").textContent =
+      best.className + " (" +
+      Math.round(best.probability * 100) + "%)";
+
+  } catch (error) {
+    console.error("인식 오류:", error);
+    return;
+  }
 
   requestAnimationFrame(predict);
 }
@@ -58,25 +82,3 @@ function updateGameInfo() {
   document.getElementById("lives").textContent =
     "❤️".repeat(lives);
 }
-
-function startGame() {
-  score = 0;
-  level = 1;
-  lives = 3;
-
-  updateGameInfo();
-
-  initCamera();
-}
-
-document.addEventListener("DOMContentLoaded", function() {
-  const startButton =
-    document.getElementById("start-button");
-
-  if (!startButton) {
-    console.error("시작 버튼을 찾을 수 없습니다.");
-    return;
-  }
-
-  startButton.addEventListener("click", startGame);
-});
