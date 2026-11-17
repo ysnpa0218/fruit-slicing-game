@@ -5,85 +5,139 @@
 
 body {
   margin: 0;
-  background: #151923;
+  padding: 25px 12px;
+  background: #101827;
   color: white;
   font-family: Arial, sans-serif;
   text-align: center;
 }
 
 .game-container {
-  max-width: 900px;
-  margin: 40px auto;
-  padding: 20px;
+  width: 100%;
+  max-width: 850px;
+  margin: auto;
+  padding: 22px;
+  background: #1d2a3d;
+  border-radius: 22px;
 }
 
 h1 {
-  color: #ffcc4d;
-  font-size: 36px;
+  color: #7dffb3;
+  font-size: 34px;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  color: #cbd5e1;
 }
 
 .game-info {
   display: flex;
   justify-content: space-around;
   gap: 10px;
-  background: #293244;
-  padding: 18px;
-  border-radius: 15px;
-  font-size: 20px;
+  margin: 25px 0;
 }
 
-#game-area {
-  height: 400px;
-  margin-top: 20px;
-  background: #202b3b;
-  border: 3px solid #53647c;
-  border-radius: 20px;
-  padding: 25px;
-}
-
-.fruit {
-  display: inline-block;
-  font-size: 65px;
-  margin: 35px 15px;
-}
-
-#start-button {
-  margin-top: 20px;
-  padding: 15px 45px;
-  border: none;
+.info-box {
+  flex: 1;
+  padding: 15px 5px;
+  background: #30415b;
   border-radius: 12px;
-  background: #ffb52e;
-  color: #222;
-  font-size: 20px;
-  font-weight: bold;
-  cursor: pointer;
+  font-size: 14px;
+  color: #cbd5e1;
 }
 
-#start-button:hover {
-  background: #ffd16c;
+.info-box strong {
+  display: block;
+  margin-top: 8px;
+  color: white;
+  font-size: 23px;
 }
+
 #game-area {
-  height: 400px;
-  margin-top: 20px;
-  background: #202b3b;
-  border: 3px solid #53647c;
-  border-radius: 20px;
-  padding: 0;
+  width: 100%;
   overflow: hidden;
+  border: 3px solid #53647c;
+  border-radius: 16px;
+  background: #101827;
 }
 
 #game-canvas {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
 }
 
-#camera-area canvas {
-  max-width: 100%;
-  height: auto;
-  border-radius: 12px;
+.camera-section {
+  margin-top: 25px;
+}
+
+.camera-section h2 {
+  font-size: 21px;
 }
 
 #camera-area {
-  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 120px;
+  padding: 10px;
+  background: #101827;
+  border-radius: 14px;
+  color: #aebbd0;
+}
+
+#camera-area canvas {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  border-radius: 10px;
+}
+
+.status {
+  margin-top: 15px;
+  color: #cbd5e1;
+}
+
+#hand-status {
+  color: #7dffb3;
+}
+
+#start-button {
+  width: 100%;
+  max-width: 350px;
+  padding: 17px;
+  margin: 20px auto;
+  border: none;
+  border-radius: 14px;
+  background: #37d987;
+  color: #10251b;
+  font-size: 21px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#start-button:hover {
+  background: #65f5aa;
+}
+
+.instruction {
+  line-height: 2;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+@media (max-width: 500px) {
+  .game-container {
+    padding: 12px;
+  }
+
+  h1 {
+    font-size: 25px;
+  }
+
+  .info-box strong {
+    font-size: 17px;
+  }
 }
