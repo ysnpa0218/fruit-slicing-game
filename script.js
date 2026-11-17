@@ -604,3 +604,28 @@ async function gameLoop() {
 
   requestAnimationFrame(gameLoop);
 }
+// 시작 버튼 강제 연결 및 오류 확인
+window.addEventListener("load", function () {
+
+  const button = document.getElementById("start-button");
+
+  if (!button) {
+    alert("시작 버튼을 찾을 수 없습니다.");
+    return;
+  }
+
+  button.onclick = async function () {
+
+    statusText.textContent = "버튼 클릭 확인!";
+
+    console.log("게임 시작 버튼 클릭 성공");
+
+    try {
+      await startGame();
+    } catch (error) {
+      console.error(error);
+      statusText.textContent = "게임 시작 실패";
+      alert("오류: " + error.message);
+    }
+  };
+});
