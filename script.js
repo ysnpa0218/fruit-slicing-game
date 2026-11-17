@@ -1,48 +1,67 @@
 
-// 게임 기본 설정
 let score = 0;
 let level = 1;
 let lives = 3;
 
-// 게임 시작 버튼
-const startButton = document.getElementById("start-button");
+let model;
+let webcam;
+let isRunning = false;
 
-startButton.addEventListener("click", function() {
-  alert("🍉 게임을 시작합니다!");
+const MODEL_URL =
+  "https://teachablemachine.withgoogle.com/models/mNstQrFaO/";
 
-  score = 0;
-  level = 1;
-  lives = 3;
+async function initCamera() {
+  try {
+    const modelURL = MODEL_URL + "model.json";
+    const metadataURL = MODEL_URL + "metadata.json";
 
-  updateGameInfo();
-});
+    model = await tmImage.load(modelURL, metadataURL);
 
-// 점수와 목숨 화면 업데이트
+    webcam = new tmImage.Webcam(400, 300, true);
+    await webcam.setup();
+    await webcam.play();
+
+    document.getElementById("camera-area").innerHTML = "";
+    document.getElementById("camera-area").appendChild(webcam.canvas);
+
+    isRunning = true;
+    predict();
+  } catch (error) {
+    alert("카메라 연결에 실패했어요. 카메라 권한을 확인해 주세요.");
+    console.error(error);
+  }
+}
+
+async function predict() {
+  if (!isRunning) return;
+
+  webcam.update();
+
+  const predictions = await model.predict(webcam.canvas);
+
+  let best = predictions.reduce((a, b) =>
+    a.probability > b.probability ? a : b
+  );
+
+  document.getElementById("hand-status").textContent =
+    best.className + " (" + Math.round(best.probability * 100) + "%)";
+
+  requestAnimationFrame(predict);
+}
+
 function updateGameInfo() {
   document.getElementById("score").textContent = score;
   document.getElementById("level").textContent = level;
-
-  document.getElementById("lives").textContent =
-    "❤️".repeat(lives);
+  document.getElementById("lives").textContent = "❤️".repeat(lives);
 }
 
-// 과일을 자를 때
-function cutFruit() {
-  score += 10;
-
-  // 과일 10개마다 레벨 상승
-  level = Math.floor(score / 100) + 1;
-
+function startGame() {
+  score = 0;
+  level = 1;
+  lives = 3;
   updateGameInfo();
+  initCamera();
 }
 
-// 폭탄을 자를 때
-function cutBomb() {
-  lives--;
-
-  updateGameInfo();
-
-  if (lives <= 0) {
-    alert("GAME OVER! 최종 점수: " + score);
-  }
-}
+document.getElementById("start-button")
+  .addEventListener("click", startGame);
