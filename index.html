@@ -4,36 +4,70 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>과일 자르기 게임</title>
+  <title>FRUIT SLICER</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
+  <main class="game-container">
 
-  <div class="game-container">
     <h1>🍉 FRUIT SLICER 🍎</h1>
+    <p class="subtitle">손을 칼처럼 움직여 과일을 잘라보세요!</p>
 
-    <div class="game-info">
-      <div>점수: <span id="score">0</span></div>
-      <div>LEVEL: <span id="level">1</span></div>
-      <div>목숨: <span id="lives">❤️❤️❤️</span></div>
-    </div>
+    <section class="game-info">
+      <div class="info-box">
+        SCORE
+        <strong id="score">0</strong>
+      </div>
 
-    <div id="game-area">
-  <canvas id="game-canvas" width="800" height="400"></canvas>
-</div>
+      <div class="info-box">
+        LEVEL
+        <strong id="level">1</strong>
+      </div>
 
-    <h3>📷 카메라 화면</h3>
-    <div id="camera-area"></div>
+      <div class="info-box">
+        LIVES
+        <strong id="lives">❤️❤️❤️</strong>
+      </div>
+    </section>
 
-    <p>손 인식 상태: <span id="hand-status">대기 중</span></p>
+    <section id="game-area">
+      <canvas id="game-canvas" width="800" height="400"></canvas>
+    </section>
+
+    <section class="camera-section">
+      <h2>📷 손 인식 카메라</h2>
+
+      <div id="camera-area">
+        <p>게임 시작을 눌러주세요.</p>
+      </div>
+
+      <p class="status">
+        손 인식 상태:
+        <strong id="hand-status">대기 중</strong>
+      </p>
+    </section>
 
     <button id="start-button" onclick="startGame()">
       게임 시작
     </button>
-  </div>
+
+    <p class="instruction">
+      ✊ 주먹: 대기
+      <br>
+      ✋ 보자기: 손을 움직여 과일 자르기
+      <br>
+      🍎 가짜 사과: 폭탄이므로 자르지 마세요!
+    </p>
+
+  </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
   <script src="script.js"></script>
 
 </body>
