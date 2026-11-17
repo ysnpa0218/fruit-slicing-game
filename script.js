@@ -1,33 +1,9 @@
 
-// ===================================
-// 1. 게임 기본 설정
-// ===================================
+"use strict";
 
-let score = 0;
-let level = 1;
-let lives = 3;
-
-let model;
-let webcam;
-let hands;
-
-let isRunning = false;
-let gameActive = false;
-let trackingBusy = false;
-
-let fruits = [];
-
-let currentGesture = "";
-let currentProbability = 0;
-
-let gestureHistory = [];
-let stableGesture = "";
-
-let handPoint = null;
-let previousHandPoint = null;
-
-let lastSpawn = 0;
-let lastCutTime = 0;
+// =====================================
+// FRUIT SLICER - 전체 게임 코드
+// =====================================
 
 const MODEL_URL =
   "https://teachablemachine.withgoogle.com/models/mNstQrFaO/";
@@ -35,95 +11,62 @@ const MODEL_URL =
 const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 
-const statusText = document.getElementById("hand-status");
+const scoreElement = document.getElementById("score");
+const levelElement = document.getElementById("level");
+const livesElement = document.getElementById("lives");
+const statusElement = document.getElementById("hand-status");
+const cameraArea = document.getElementById("camera-area");
 const startButton = document.getElementById("start-button");
 
+// 게임 상태
+let score = 0;
+let level = 1;
+let lives = 3;
 
-// ===================================
-// 2. 게임 시작 및 재시작
-// ===================================
+let model = null;
+let webcam = null;
+let hands = null;
 
-async function startGame() {
+let isInitializing = false;
+let isRunning = false;
+let gameActive = false;
 
-  // 이미 실행 중이면 게임만 다시 시작
-  if (isRunning) {
-    resetGame();
-    return;
-  }
+let fruits = [];
 
-  startButton.disabled = true;
-  statusText.textContent = "AI 모델 불러오는 중...";
+let currentGesture = "";
+let stableGesture = "";
 
-  try {
+let gestureHistory = [];
 
-    // Teachable Machine 모델 불러오기
-    model = await tmImage.load(
-      MODEL_URL + "model.json",
-      MODEL_URL + "metadata.json"
-    );
+let handPoint = null;
+let previousHandPoint = null;
 
-    // 카메라 연결
-    webcam = new tmImage.Webcam(400, 300, true);
+let lastSpawn = 0;
+let lastCutTime = 0;
 
-    await webcam.setup();
-    await webcam.play();
+let animationId = null;
+let predictionBusy = false;
+let trackingBusy = false;
 
-    const cameraArea =
-      document.getElementById("camera-area");
+let cameraReady = false;
 
-    cameraArea.innerHTML = "";
-    cameraArea.appendChild(webcam.canvas);
 
-    // MediaPipe 손 추적 설정
-    hands = new Hands({
-      locateFile: (file) => {
-        return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/" + file;
-      }
-    });
+// =====================================
+// 화면 정보 업데이트
+// =====================================
 
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6
-    });
-
-    hands.onResults(onHandResults);
-
-    isRunning = true;
-
-    resetGame();
-
-    startButton.disabled = false;
-    startButton.textContent = "게임 다시 시작";
-
-    statusText.textContent = "손바닥을 보여주세요!";
-
-    predictLoop();
-    gameLoop();
-
-  } catch (error) {
-
-    console.error("게임 실행 오류:", error);
-
-    statusText.textContent = "연결 오류";
-
-    alert(
-      "게임 실행에 실패했습니다.\n" +
-      error.message
-    );
-
-    startButton.disabled = false;
-  }
+function updateGameInfo() {
+  scoreElement.textContent = score;
+  levelElement.textContent = level;
+  livesElement.textContent = "❤️".repeat(Math.max(0, lives));
 }
 
 
-// ===================================
-// 3. 게임 초기화
-// ===================================
+// =====================================
+// 게임 초기화
+// =====================================
 
 function resetGame() {
-
   score = 0;
   level = 1;
   lives = 3;
@@ -143,61 +86,176 @@ function resetGame() {
 
   updateGameInfo();
 
-  statusText.textContent = "게임 시작! 보자기로 움직여보세요.";
-
+  statusElement.textContent = "보자기를 보여주세요!";
 }
 
 
-// ===================================
-// 4. 손동작 인식
-// ===================================
+// =====================================
+// 시작 버튼
+// =====================================
 
-async function predictLoop() {
+async function startGame() {
 
-  if (!isRunning) return;
+  // 초기화 도중 중복 클릭 방지
+  if (isInitializing) return;
+
+  // 카메라가 이미 준비된 상태라면 재시작
+  if (cameraReady) {
+    resetGame();
+    return;
+  }
+
+  isInitializing = true;
+  startButton.disabled = true;
+
+  statusElement.textContent = "게임 준비 중...";
 
   try {
 
-    const predictions =
-      await model.predict(webcam.canvas);
+    // 1. Teachable Machine 모델 불러오기
+    statusElement.textContent = "AI 모델 불러오는 중...";
+
+    model = await tmImage.load(
+      MODEL_URL + "model.json",
+      MODEL_URL + "metadata.json"
+    );
+
+    // 2. 카메라 연결
+    statusElement.textContent = "카메라 연결 중...";
+
+    webcam = new tmImage.Webcam(400, 300, true);
+
+    await webcam.setup();
+    await webcam.play();
+
+    cameraArea.innerHTML = "";
+    cameraArea.appendChild(webcam.canvas);
+
+    // 3. MediaPipe 손 추적 설정
+    statusElement.textContent = "손 추적 준비 중...";
+
+    hands = new Hands({
+      locateFile: function(file) {
+        return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/" + file;
+      }
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.65,
+      minTrackingConfidence: 0.65
+    });
+
+    hands.onResults(handleHandResults);
+
+    // 초기화 완료
+    cameraReady = true;
+    isRunning = true;
+
+    resetGame();
+
+    startButton.textContent = "게임 다시 시작";
+
+    statusElement.textContent = "게임 시작!";
+
+    // 반복 실행 시작
+    requestAnimationFrame(gameLoop);
+    predictionLoop();
+
+  } catch (error) {
+
+    console.error("게임 시작 오류:", error);
+
+    statusElement.textContent = "시작 실패: " + error.message;
+
+    alert(
+      "게임 시작에 실패했습니다.\n\n" +
+      error.message +
+      "\n\n카메라 권한과 인터넷 연결을 확인해 주세요."
+    );
+
+    // 실패하면 다시 시작할 수 있도록 상태 초기화
+    isRunning = false;
+    cameraReady = false;
+
+    startButton.textContent = "다시 시작";
+    cameraArea.innerHTML = "<p>카메라 연결에 실패했습니다.</p>";
+
+  } finally {
+
+    isInitializing = false;
+    startButton.disabled = false;
+
+  }
+}
+
+
+// =====================================
+// 버튼 이벤트 연결
+// =====================================
+
+startButton.addEventListener("click", function() {
+  startGame();
+});
+
+
+// =====================================
+// Teachable Machine 손동작 인식
+// =====================================
+
+async function predictionLoop() {
+
+  if (!isRunning || predictionBusy) return;
+
+  predictionBusy = true;
+
+  try {
+
+    webcam.update();
+
+    const predictions = await model.predict(webcam.canvas);
 
     const best = predictions.reduce((a, b) =>
       a.probability > b.probability ? a : b
     );
 
     currentGesture = best.className.trim();
-    currentProbability = best.probability;
 
-    updateGesture();
+    updateStableGesture(
+      currentGesture,
+      best.probability
+    );
 
-    statusText.textContent =
+    statusElement.textContent =
       currentGesture +
       " (" +
-      Math.round(currentProbability * 100) +
+      Math.round(best.probability * 100) +
       "%)";
 
   } catch (error) {
 
     console.error("손 인식 오류:", error);
 
+  } finally {
+
+    predictionBusy = false;
+
   }
 
   if (isRunning) {
-    setTimeout(predictLoop, 120);
+    setTimeout(predictionLoop, 120);
   }
 }
 
 
-// ===================================
-// 5. 손동작 안정화
-// ===================================
+// =====================================
+// 손동작 안정화
+// =====================================
 
-function updateGesture() {
+function updateStableGesture(name, probability) {
 
-  const detected =
-    currentProbability >= 0.75
-      ? currentGesture
-      : "";
+  const detected = probability >= 0.75 ? name : "";
 
   gestureHistory.push(detected);
 
@@ -207,107 +265,91 @@ function updateGesture() {
 
   const counts = {};
 
-  gestureHistory.forEach(name => {
-    if (name) {
-      counts[name] = (counts[name] || 0) + 1;
+  gestureHistory.forEach(item => {
+    if (item) {
+      counts[item] = (counts[item] || 0) + 1;
     }
   });
 
-  let bestName = "";
+  stableGesture = "";
 
   for (const name in counts) {
     if (counts[name] >= 4) {
-      bestName = name;
+      stableGesture = name;
+      break;
     }
   }
-
-  stableGesture = bestName;
 }
 
 
-// ===================================
-// 6. 실제 손 위치 추적
-// ===================================
+// =====================================
+// MediaPipe 손 위치 추적
+// =====================================
 
-function onHandResults(results) {
+function handleHandResults(results) {
 
   if (
-    results.multiHandLandmarks &&
-    results.multiHandLandmarks.length > 0
+    !gameActive ||
+    !results.multiHandLandmarks ||
+    results.multiHandLandmarks.length === 0
   ) {
-
-    const landmarks =
-      results.multiHandLandmarks[0];
-
-    // 손바닥 중앙 부분을 추적
-    const palm = landmarks[9];
-
-    handPoint = {
-      x: palm.x * canvas.width,
-      y: palm.y * canvas.height
-    };
-
-    if (
-      gameActive &&
-      stableGesture === "보자기" &&
-      previousHandPoint
-    ) {
-
-      const dx =
-        handPoint.x - previousHandPoint.x;
-
-      const dy =
-        handPoint.y - previousHandPoint.y;
-
-      const distance =
-        Math.sqrt(dx * dx + dy * dy);
-
-      if (
-        distance > 3 &&
-        Date.now() - lastCutTime > 70
-      ) {
-
-        sliceFruit(
-          previousHandPoint,
-          handPoint
-        );
-
-        lastCutTime = Date.now();
-      }
-    }
-
-    previousHandPoint = { ...handPoint };
-
-  } else {
 
     handPoint = null;
     previousHandPoint = null;
+
+    return;
   }
+
+  const landmarks = results.multiHandLandmarks[0];
+
+  // 손바닥 중심점
+  const palm = landmarks[9];
+
+  // 카메라 영상은 좌우 반전되므로 x축도 반전
+  const point = {
+    x: (1 - palm.x) * canvas.width,
+    y: palm.y * canvas.height
+  };
+
+  handPoint = point;
+
+  if (
+    stableGesture === "보자기" &&
+    previousHandPoint
+  ) {
+
+    const distance = Math.hypot(
+      point.x - previousHandPoint.x,
+      point.y - previousHandPoint.y
+    );
+
+    if (
+      distance > 3 &&
+      distance < 120 &&
+      Date.now() - lastCutTime > 70
+    ) {
+
+      sliceFruit(previousHandPoint, point);
+
+      lastCutTime = Date.now();
+    }
+  }
+
+  previousHandPoint = { ...point };
 }
 
 
-// ===================================
-// 7. 과일 생성
-// ===================================
+// =====================================
+// 과일 생성
+// =====================================
 
 function createFruit() {
 
   const bomb = Math.random() < 0.20;
 
   const fruitTypes = [
-    "🍉",
-    "🍊",
-    "🍇",
-    "🍓",
-    "🍍",
-    "🍌",
-    "🍒"
+    "🍉", "🍊", "🍇", "🍓", "🍍", "🍌", "🍒"
   ];
-
-  const size = Math.max(
-    0.55,
-    1 - (level - 1) * 0.07
-  );
 
   fruits.push({
 
@@ -319,7 +361,10 @@ function createFruit() {
 
     gravity: 0.16,
 
-    size: size,
+    size: Math.max(
+      0.55,
+      1 - (level - 1) * 0.07
+    ),
 
     emoji: bomb
       ? "🍎"
@@ -333,9 +378,9 @@ function createFruit() {
 }
 
 
-// ===================================
-// 8. 손의 이동 경로와 과일 충돌
-// ===================================
+// =====================================
+// 손 이동 선과 과일 충돌
+// =====================================
 
 function distanceToSegment(point, start, end) {
 
@@ -358,19 +403,19 @@ function distanceToSegment(point, start, end) {
 
   t = Math.max(0, Math.min(1, t));
 
-  const closestX = start.x + t * dx;
-  const closestY = start.y + t * dy;
+  const nearestX = start.x + t * dx;
+  const nearestY = start.y + t * dy;
 
   return Math.hypot(
-    point.x - closestX,
-    point.y - closestY
+    point.x - nearestX,
+    point.y - nearestY
   );
 }
 
 
-// ===================================
-// 9. 과일 자르기
-// ===================================
+// =====================================
+// 과일 자르기
+// =====================================
 
 function sliceFruit(start, end) {
 
@@ -392,7 +437,6 @@ function sliceFruit(start, end) {
 
         updateGameInfo();
 
-        // 폭탄을 자르면 게임 종료 조건 확인
         if (lives <= 0) {
           endGame();
         }
@@ -413,175 +457,135 @@ function sliceFruit(start, end) {
 }
 
 
-// ===================================
-// 10. 점수 및 목숨 표시
-// ===================================
-
-function updateGameInfo() {
-
-  document.getElementById("score").textContent =
-    score;
-
-  document.getElementById("level").textContent =
-    level;
-
-  document.getElementById("lives").textContent =
-    "❤️".repeat(lives);
-
-}
-
-
-// ===================================
-// 11. 게임 오버
-// ===================================
+// =====================================
+// 게임 종료
+// =====================================
 
 function endGame() {
 
   gameActive = false;
 
-  statusText.textContent = "게임 오버!";
+  statusElement.textContent = "게임 오버!";
 
   startButton.textContent = "다시 시작하기";
 
-  alert(
-    "GAME OVER!\n" +
-    "최종 점수: " + score
-  );
 }
 
 
-// ===================================
-// 12. 게임 화면 그리기
-// ===================================
+// =====================================
+// 게임 화면 그리기
+// =====================================
 
 function drawGame() {
 
   ctx.clearRect(
-    0,
-    0,
+    0, 0,
     canvas.width,
     canvas.height
   );
 
-  // 배경
   ctx.fillStyle = "#101827";
 
   ctx.fillRect(
-    0,
-    0,
+    0, 0,
     canvas.width,
     canvas.height
   );
 
-  if (gameActive) {
+  if (!gameActive) {
 
-    const now = Date.now();
-
-    // 과일 생성 간격
-    if (now - lastSpawn > 1100) {
-
-      createFruit();
-
-      lastSpawn = now;
-    }
-
-    // 과일 움직임
-    for (let i = fruits.length - 1; i >= 0; i--) {
-
-      const fruit = fruits[i];
-
-      fruit.x += fruit.speedX;
-      fruit.y += fruit.speedY;
-
-      fruit.speedY += fruit.gravity;
-
-      ctx.font =
-        `${64 * fruit.size}px Arial`;
-
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      ctx.fillText(
-        fruit.emoji,
-        fruit.x,
-        fruit.y
-      );
-
-      // 과일 모양 폭탄에 경고 표시
-      if (fruit.bomb) {
-
-        ctx.font = "20px Arial";
-
-        ctx.fillText(
-          "⚠️",
-          fruit.x + 24,
-          fruit.y - 25
-        );
-      }
-
-      // 화면 밖으로 나간 과일 제거
-      if (fruit.y > 460) {
-
-        fruits.splice(i, 1);
-      }
-    }
-
-    // 손 위치 표시
-    if (handPoint) {
-
-      ctx.beginPath();
-
-      ctx.arc(
-        handPoint.x,
-        handPoint.y,
-        15,
-        0,
-        Math.PI * 2
-      );
-
-      ctx.fillStyle =
-        stableGesture === "보자기"
-          ? "#00ff88"
-          : "#ffffff";
-
-      ctx.fill();
-
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 3;
-
-      ctx.stroke();
-    }
-
-  } else {
-
-    ctx.fillStyle = "#ffffff";
-
+    ctx.fillStyle = "white";
     ctx.font = "bold 42px Arial";
-
     ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
 
     ctx.fillText(
       "GAME OVER",
       canvas.width / 2,
       canvas.height / 2
     );
+
+    return;
+  }
+
+  // 과일 생성
+  if (Date.now() - lastSpawn > 1100) {
+
+    createFruit();
+
+    lastSpawn = Date.now();
+  }
+
+  // 과일 이동 및 그리기
+  for (let i = fruits.length - 1; i >= 0; i--) {
+
+    const fruit = fruits[i];
+
+    fruit.x += fruit.speedX;
+    fruit.y += fruit.speedY;
+    fruit.speedY += fruit.gravity;
+
+    ctx.font = `${64 * fruit.size}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.fillText(
+      fruit.emoji,
+      fruit.x,
+      fruit.y
+    );
+
+    if (fruit.bomb) {
+
+      ctx.font = "20px Arial";
+
+      ctx.fillText(
+        "⚠️",
+        fruit.x + 24,
+        fruit.y - 25
+      );
+    }
+
+    if (fruit.y > 460) {
+      fruits.splice(i, 1);
+    }
+  }
+
+  // 손 위치 표시
+  if (handPoint) {
+
+    ctx.beginPath();
+
+    ctx.arc(
+      handPoint.x,
+      handPoint.y,
+      15,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fillStyle =
+      stableGesture === "보자기"
+        ? "#00ff88"
+        : "#ffffff";
+
+    ctx.fill();
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 3;
+    ctx.stroke();
   }
 }
 
 
-// ===================================
-// 13. 게임 실행 반복
-// ===================================
+// =====================================
+// 게임 반복 실행
+// =====================================
 
 async function gameLoop() {
 
   if (!isRunning) return;
 
-  webcam.update();
-
-  // MediaPipe 손 추적
-  if (!trackingBusy) {
+  if (webcam && hands && !trackingBusy) {
 
     trackingBusy = true;
 
@@ -593,39 +597,18 @@ async function gameLoop() {
 
     } catch (error) {
 
-      console.error("손 위치 추적 오류:", error);
+      console.error("손 추적 오류:", error);
+
+    } finally {
+
+      trackingBusy = false;
 
     }
-
-    trackingBusy = false;
   }
 
   drawGame();
 
-  requestAnimationFrame(gameLoop);
-}
-// 시작 버튼 강제 연결 및 오류 확인
-window.addEventListener("load", function () {
-
-  const button = document.getElementById("start-button");
-
-  if (!button) {
-    alert("시작 버튼을 찾을 수 없습니다.");
-    return;
+  if (isRunning) {
+    requestAnimationFrame(gameLoop);
   }
-
-  button.onclick = async function () {
-
-    statusText.textContent = "버튼 클릭 확인!";
-
-    console.log("게임 시작 버튼 클릭 성공");
-
-    try {
-      await startGame();
-    } catch (error) {
-      console.error(error);
-      statusText.textContent = "게임 시작 실패";
-      alert("오류: " + error.message);
-    }
-  };
-});
+}
