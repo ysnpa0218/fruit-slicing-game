@@ -9,7 +9,7 @@ const MODEL_URL =
   "https://teachablemachine.withgoogle.com/models/mNstQrFaO/";
 
 const canvas = document.getElementById("game-canvas");
-const ctx = canvas ? canvas.getContext("2d") : null;
+const ctx = canvas.getContext("2d");
 
 const scoreElement = document.getElementById("score");
 const levelElement = document.getElementById("level");
@@ -17,6 +17,9 @@ const livesElement = document.getElementById("lives");
 const statusElement = document.getElementById("hand-status");
 const cameraArea = document.getElementById("camera-area");
 const startButton = document.getElementById("start-button");
+
+// AI 모델의 실제 손동작 이름
+const CUT_GESTURE = "손바닥을 펼친 모습";
 
 // 게임 상태
 let score = 0;
@@ -35,6 +38,7 @@ let fruits = [];
 
 let currentGesture = "";
 let stableGesture = "";
+
 let gestureHistory = [];
 
 let handPoint = null;
@@ -51,60 +55,6 @@ let cameraReady = false;
 
 
 // =====================================
-// 화면 전환
-// =====================================
-
-function showGameScreen() {
-
-  const startScreen = document.querySelector(
-    "#start-screen, #start-page, .start-screen, .start-page"
-  );
-
-  const gameScreen = document.querySelector(
-    "#game-screen, #game-page, .game-screen, .game-page"
-  );
-
-  if (startScreen) {
-    startScreen.style.display = "none";
-  }
-
-  if (gameScreen) {
-    gameScreen.style.display = "block";
-  }
-
-  if (canvas) {
-    canvas.style.display = "block";
-  }
-
-  if (cameraArea) {
-    cameraArea.style.display = "block";
-  }
-
-  console.log("게임 화면 표시 완료");
-}
-
-
-function showStartScreen() {
-
-  const startScreen = document.querySelector(
-    "#start-screen, #start-page, .start-screen, .start-page"
-  );
-
-  const gameScreen = document.querySelector(
-    "#game-screen, #game-page, .game-screen, .game-page"
-  );
-
-  if (startScreen) {
-    startScreen.style.display = "block";
-  }
-
-  if (gameScreen) {
-    gameScreen.style.display = "none";
-  }
-}
-
-
-// =====================================
 // 화면 정보 업데이트
 // =====================================
 
@@ -112,7 +62,8 @@ function updateGameInfo() {
 
   scoreElement.textContent = score;
   levelElement.textContent = level;
-  livesElement.textContent = "❤️".repeat(Math.max(0, lives));
+  livesElement.textContent =
+    "❤️".repeat(Math.max(0, lives));
 
 }
 
@@ -143,62 +94,24 @@ function resetGame() {
 
   updateGameInfo();
 
-  statusElement.textContent = "보자기를 보여주세요!";
+  statusElement.textContent =
+    "손바닥을 펼쳐주세요!";
 
 }
 
 
 // =====================================
-// 게임 시작
+// 시작 버튼
 // =====================================
 
 async function startGame() {
 
-  console.log("게임 시작 함수 실행");
-
-  if (!canvas || !ctx || !startButton ||
-      !statusElement || !cameraArea) {
-
-    console.error("필수 HTML 요소를 찾을 수 없습니다.");
-
-    alert(
-      "게임 화면의 HTML 요소를 찾을 수 없습니다. " +
-      "index.html의 id를 확인해 주세요."
-    );
-
-    return;
-  }
-
-  if (typeof tmImage === "undefined") {
-
-    statusElement.textContent =
-      "Teachable Machine 라이브러리를 불러오지 못했습니다.";
-
-    console.error("tmImage 라이브러리 오류");
-
-    return;
-  }
-
-  if (typeof Hands === "undefined") {
-
-    statusElement.textContent =
-      "MediaPipe Hands 라이브러리를 불러오지 못했습니다.";
-
-    console.error("MediaPipe Hands 라이브러리 오류");
-
-    return;
-  }
-
   if (isInitializing) return;
 
-  // 이미 카메라가 준비되어 있다면 재시작
+  // 카메라가 이미 준비되어 있다면 재시작
   if (cameraReady) {
 
-    showGameScreen();
-
     resetGame();
-
-    startButton.textContent = "게임 다시 시작";
 
     if (!isRunning) {
 
@@ -207,13 +120,13 @@ async function startGame() {
       requestAnimationFrame(gameLoop);
 
       predictionLoop();
+
     }
 
     return;
   }
 
   isInitializing = true;
-
   startButton.disabled = true;
 
   statusElement.textContent = "게임 준비 중...";
@@ -238,7 +151,6 @@ async function startGame() {
     webcam = new tmImage.Webcam(400, 300, true);
 
     await webcam.setup();
-
     await webcam.play();
 
     cameraArea.innerHTML = "";
@@ -246,7 +158,6 @@ async function startGame() {
     webcam.canvas.style.width = "100%";
     webcam.canvas.style.maxWidth = "400px";
     webcam.canvas.style.height = "auto";
-    webcam.canvas.style.display = "block";
 
     cameraArea.appendChild(webcam.canvas);
 
@@ -286,17 +197,15 @@ async function startGame() {
 
     resetGame();
 
-    showGameScreen();
-
     startButton.textContent = "게임 다시 시작";
 
     statusElement.textContent = "게임 시작!";
 
+    console.log("게임 초기화 완료");
+
     requestAnimationFrame(gameLoop);
 
     predictionLoop();
-
-    console.log("게임 초기화 완료");
 
   } catch (error) {
 
@@ -313,20 +222,9 @@ async function startGame() {
 
     isRunning = false;
     cameraReady = false;
-    gameActive = false;
 
     if (webcam && webcam.stop) {
-
-      try {
-
-        webcam.stop();
-
-      } catch (stopError) {
-
-        console.warn("카메라 정리 오류:", stopError);
-
-      }
-
+      webcam.stop();
     }
 
     webcam = null;
@@ -341,7 +239,6 @@ async function startGame() {
   } finally {
 
     isInitializing = false;
-
     startButton.disabled = false;
 
   }
@@ -350,38 +247,16 @@ async function startGame() {
 
 
 // =====================================
-// 시작 버튼 이벤트
+// 버튼 이벤트 연결
 // =====================================
 
 startButton.addEventListener("click", function() {
 
   console.log("게임 시작 버튼 클릭 성공");
 
-  startGame().catch(error => {
-
-    console.error("예기치 않은 시작 오류:", error);
-
-    statusElement.textContent =
-      "게임 시작 오류: " + error.message;
-
-  });
+  startGame();
 
 });
-
-
-// 페이지 최초 진입 시 시작 화면 유지
-if (
-  document.querySelector(
-    "#start-screen, #start-page, .start-screen, .start-page"
-  ) &&
-  document.querySelector(
-    "#game-screen, #game-page, .game-screen, .game-page"
-  )
-) {
-
-  showStartScreen();
-
-}
 
 
 // =====================================
@@ -443,15 +318,14 @@ async function predictionLoop() {
 
 function updateStableGesture(name, probability) {
 
+  // 기존 75%에서 60%로 조정
   const detected =
-    probability >= 0.75 ? name : "";
+    probability >= 0.60 ? name : "";
 
   gestureHistory.push(detected);
 
   if (gestureHistory.length > 5) {
-
     gestureHistory.shift();
-
   }
 
   const counts = {};
@@ -459,23 +333,21 @@ function updateStableGesture(name, probability) {
   gestureHistory.forEach(item => {
 
     if (item) {
-
       counts[item] = (counts[item] || 0) + 1;
-
     }
 
   });
 
   stableGesture = "";
 
+  // 최근 5회 중 3회 이상 일치하면 동작 인정
   for (const name in counts) {
 
-    if (counts[name] >= 4) {
+    if (counts[name] >= 3) {
 
       stableGesture = name;
 
       break;
-
     }
 
   }
@@ -502,11 +374,12 @@ function handleHandResults(results) {
 
   }
 
-  const landmarks =
-    results.multiHandLandmarks[0];
+  const landmarks = results.multiHandLandmarks[0];
 
+  // 손바닥 중심점
   const palm = landmarks[9];
 
+  // 카메라 영상은 좌우 반전되므로 x축도 반전
   const point = {
 
     x: (1 - palm.x) * canvas.width,
@@ -516,8 +389,9 @@ function handleHandResults(results) {
 
   handPoint = point;
 
+  // 손바닥을 펼친 상태에서 움직이면 과일 자르기
   if (
-    stableGesture === "보자기" &&
+    stableGesture === CUT_GESTURE &&
     previousHandPoint
   ) {
 
@@ -532,10 +406,7 @@ function handleHandResults(results) {
       Date.now() - lastCutTime > 70
     ) {
 
-      sliceFruit(
-        previousHandPoint,
-        point
-      );
+      sliceFruit(previousHandPoint, point);
 
       lastCutTime = Date.now();
 
@@ -580,7 +451,7 @@ function createFruit() {
     ),
 
     emoji: bomb
-      ? "🍎"
+      ? "💣"
       : fruitTypes[
           Math.floor(Math.random() * fruitTypes.length)
         ],
@@ -601,8 +472,7 @@ function distanceToSegment(point, start, end) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
 
-  const lengthSquared =
-    dx * dx + dy * dy;
+  const lengthSquared = dx * dx + dy * dy;
 
   if (lengthSquared === 0) {
 
@@ -622,11 +492,8 @@ function distanceToSegment(point, start, end) {
 
   t = Math.max(0, Math.min(1, t));
 
-  const nearestX =
-    start.x + t * dx;
-
-  const nearestY =
-    start.y + t * dy;
+  const nearestX = start.x + t * dx;
+  const nearestY = start.y + t * dy;
 
   return Math.hypot(
     point.x - nearestX,
@@ -642,11 +509,7 @@ function distanceToSegment(point, start, end) {
 
 function sliceFruit(start, end) {
 
-  for (
-    let i = fruits.length - 1;
-    i >= 0;
-    i--
-  ) {
+  for (let i = fruits.length - 1; i >= 0; i--) {
 
     const fruit = fruits[i];
 
@@ -665,9 +528,7 @@ function sliceFruit(start, end) {
         updateGameInfo();
 
         if (lives <= 0) {
-
           endGame();
-
         }
 
       } else {
@@ -745,7 +606,6 @@ function drawGame() {
   }
 
   // 과일 생성
-
   if (Date.now() - lastSpawn > 1100) {
 
     createFruit();
@@ -755,25 +615,17 @@ function drawGame() {
   }
 
   // 과일 이동 및 그리기
-
-  for (
-    let i = fruits.length - 1;
-    i >= 0;
-    i--
-  ) {
+  for (let i = fruits.length - 1; i >= 0; i--) {
 
     const fruit = fruits[i];
 
     fruit.x += fruit.speedX;
-
     fruit.y += fruit.speedY;
-
     fruit.speedY += fruit.gravity;
 
     ctx.font = `${64 * fruit.size}px Arial`;
 
     ctx.textAlign = "center";
-
     ctx.textBaseline = "middle";
 
     ctx.fillText(
@@ -803,7 +655,6 @@ function drawGame() {
   }
 
   // 손 위치 표시
-
   if (handPoint) {
 
     ctx.beginPath();
@@ -817,14 +668,13 @@ function drawGame() {
     );
 
     ctx.fillStyle =
-      stableGesture === "보자기"
+      stableGesture === CUT_GESTURE
         ? "#00ff88"
         : "#ffffff";
 
     ctx.fill();
 
     ctx.strokeStyle = "#ffffff";
-
     ctx.lineWidth = 3;
 
     ctx.stroke();
@@ -849,9 +699,7 @@ async function gameLoop() {
     try {
 
       await hands.send({
-
         image: webcam.canvas
-
       });
 
     } catch (error) {
@@ -870,7 +718,7 @@ async function gameLoop() {
 
   if (isRunning) {
 
-    requestAnimationFrame(gameLoop);
+    animationId = requestAnimationFrame(gameLoop);
 
   }
 
