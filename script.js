@@ -282,19 +282,24 @@ function gameLoop() {
     }
 
     // 손의 움직임 표시
-    if (handCursor && currentGesture === "보자기") {
-      ctx.beginPath();
-      ctx.arc(
-        handCursor.x,
-        handCursor.y,
-        13,
-        0,
-        Math.PI * 2
-      );
+if (handCursor) {
+  ctx.beginPath();
 
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
-    }
+  ctx.arc(
+    handCursor.x,
+    handCursor.y,
+    18,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fillStyle = "#00ff88";
+  ctx.fill();
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+}
 
   } else {
     ctx.fillStyle = "white";
