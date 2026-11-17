@@ -18,7 +18,7 @@ const statusElement = document.getElementById("hand-status");
 const cameraArea = document.getElementById("camera-area");
 const startButton = document.getElementById("start-button");
 
-// AI 모델의 실제 손동작 이름
+// AI 모델 실제 손동작 이름
 const CUT_GESTURE = "손바닥을 펼친 모습";
 
 // 게임 상태
@@ -38,7 +38,6 @@ let fruits = [];
 
 let currentGesture = "";
 let stableGesture = "";
-
 let gestureHistory = [];
 
 let handPoint = null;
@@ -101,14 +100,16 @@ function resetGame() {
 
 
 // =====================================
-// 시작 버튼
+// 게임 시작
 // =====================================
 
 async function startGame() {
 
+  console.log("게임 시작 버튼 클릭 성공");
+
   if (isInitializing) return;
 
-  // 카메라가 이미 준비되어 있다면 재시작
+  // 카메라가 이미 준비되어 있으면 재시작
   if (cameraReady) {
 
     resetGame();
@@ -122,6 +123,8 @@ async function startGame() {
       predictionLoop();
 
     }
+
+    startButton.textContent = "게임 다시 시작";
 
     return;
   }
@@ -144,6 +147,7 @@ async function startGame() {
     );
 
     // 2. 카메라 연결
+    // true = 카메라 영상 좌우 반전
 
     statusElement.textContent =
       "카메라 연결 중...";
@@ -158,6 +162,7 @@ async function startGame() {
     webcam.canvas.style.width = "100%";
     webcam.canvas.style.maxWidth = "400px";
     webcam.canvas.style.height = "auto";
+    webcam.canvas.style.display = "block";
 
     cameraArea.appendChild(webcam.canvas);
 
@@ -224,7 +229,13 @@ async function startGame() {
     cameraReady = false;
 
     if (webcam && webcam.stop) {
-      webcam.stop();
+
+      try {
+        webcam.stop();
+      } catch (e) {
+        console.warn(e);
+      }
+
     }
 
     webcam = null;
@@ -252,9 +263,11 @@ async function startGame() {
 
 startButton.addEventListener("click", function() {
 
-  console.log("게임 시작 버튼 클릭 성공");
+  startGame().catch(error => {
 
-  startGame();
+    console.error("게임 실행 오류:", error);
+
+  });
 
 });
 
@@ -318,7 +331,7 @@ async function predictionLoop() {
 
 function updateStableGesture(name, probability) {
 
-  // 기존 75%에서 60%로 조정
+  // 인식 확률 60% 이상일 때 인정
   const detected =
     probability >= 0.60 ? name : "";
 
@@ -340,7 +353,7 @@ function updateStableGesture(name, probability) {
 
   stableGesture = "";
 
-  // 최근 5회 중 3회 이상 일치하면 동작 인정
+  // 최근 5회 중 3회 이상 일치하면 인정
   for (const name in counts) {
 
     if (counts[name] >= 3) {
@@ -348,6 +361,7 @@ function updateStableGesture(name, probability) {
       stableGesture = name;
 
       break;
+
     }
 
   }
@@ -379,10 +393,13 @@ function handleHandResults(results) {
   // 손바닥 중심점
   const palm = landmarks[9];
 
-  // 카메라 영상은 좌우 반전되므로 x축도 반전
+  // 좌우 반전 수정
+  // webcam이 이미 좌우 반전된 영상을 제공하므로
+  // 여기서는 다시 반전하지 않음
+
   const point = {
 
-    x: (1 - palm.x) * canvas.width,
+    x: palm.x * canvas.width,
     y: palm.y * canvas.height
 
   };
@@ -428,8 +445,13 @@ function createFruit() {
   const bomb = Math.random() < 0.20;
 
   const fruitTypes = [
-    "🍉", "🍊", "🍇", "🍓",
-    "🍍", "🍌", "🍒"
+    "🍉",
+    "🍊",
+    "🍇",
+    "🍓",
+    "🍍",
+    "🍌",
+    "🍒"
   ];
 
   fruits.push({
@@ -528,7 +550,9 @@ function sliceFruit(start, end) {
         updateGameInfo();
 
         if (lives <= 0) {
+
           endGame();
+
         }
 
       } else {
@@ -606,6 +630,7 @@ function drawGame() {
   }
 
   // 과일 생성
+
   if (Date.now() - lastSpawn > 1100) {
 
     createFruit();
@@ -615,6 +640,7 @@ function drawGame() {
   }
 
   // 과일 이동 및 그리기
+
   for (let i = fruits.length - 1; i >= 0; i--) {
 
     const fruit = fruits[i];
@@ -655,6 +681,7 @@ function drawGame() {
   }
 
   // 손 위치 표시
+
   if (handPoint) {
 
     ctx.beginPath();
