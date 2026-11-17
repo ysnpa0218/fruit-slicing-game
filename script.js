@@ -21,14 +21,16 @@ async function initCamera() {
     await webcam.setup();
     await webcam.play();
 
-    document.getElementById("camera-area").innerHTML = "";
-    document.getElementById("camera-area").appendChild(webcam.canvas);
+    const cameraArea = document.getElementById("camera-area");
+    cameraArea.innerHTML = "";
+    cameraArea.appendChild(webcam.canvas);
 
     isRunning = true;
     predict();
+
   } catch (error) {
-    alert("카메라 연결에 실패했어요. 카메라 권한을 확인해 주세요.");
-    console.error(error);
+    console.error("카메라 오류:", error);
+    alert("카메라 연결 실패: " + error.message);
   }
 }
 
@@ -44,7 +46,8 @@ async function predict() {
   );
 
   document.getElementById("hand-status").textContent =
-    best.className + " (" + Math.round(best.probability * 100) + "%)";
+    best.className + " (" +
+    Math.round(best.probability * 100) + "%)";
 
   requestAnimationFrame(predict);
 }
@@ -52,16 +55,28 @@ async function predict() {
 function updateGameInfo() {
   document.getElementById("score").textContent = score;
   document.getElementById("level").textContent = level;
-  document.getElementById("lives").textContent = "❤️".repeat(lives);
+  document.getElementById("lives").textContent =
+    "❤️".repeat(lives);
 }
 
 function startGame() {
   score = 0;
   level = 1;
   lives = 3;
+
   updateGameInfo();
+
   initCamera();
 }
 
-document.getElementById("start-button")
-  .addEventListener("click", startGame);
+document.addEventListener("DOMContentLoaded", function() {
+  const startButton =
+    document.getElementById("start-button");
+
+  if (!startButton) {
+    console.error("시작 버튼을 찾을 수 없습니다.");
+    return;
+  }
+
+  startButton.addEventListener("click", startGame);
+});
