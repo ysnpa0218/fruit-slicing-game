@@ -9,7 +9,7 @@ const MODEL_URL =
   "https://teachablemachine.withgoogle.com/models/mNstQrFaO/";
 
 const canvas = document.getElementById("game-canvas");
-const ctx = canvas.getContext("2d");
+const ctx = canvas ? canvas.getContext("2d") : null;
 
 const scoreElement = document.getElementById("score");
 const levelElement = document.getElementById("level");
@@ -35,7 +35,6 @@ let fruits = [];
 
 let currentGesture = "";
 let stableGesture = "";
-
 let gestureHistory = [];
 
 let handPoint = null;
@@ -52,13 +51,69 @@ let cameraReady = false;
 
 
 // =====================================
+// 화면 전환
+// =====================================
+
+function showGameScreen() {
+
+  const startScreen = document.querySelector(
+    "#start-screen, #start-page, .start-screen, .start-page"
+  );
+
+  const gameScreen = document.querySelector(
+    "#game-screen, #game-page, .game-screen, .game-page"
+  );
+
+  if (startScreen) {
+    startScreen.style.display = "none";
+  }
+
+  if (gameScreen) {
+    gameScreen.style.display = "block";
+  }
+
+  if (canvas) {
+    canvas.style.display = "block";
+  }
+
+  if (cameraArea) {
+    cameraArea.style.display = "block";
+  }
+
+  console.log("게임 화면 표시 완료");
+}
+
+
+function showStartScreen() {
+
+  const startScreen = document.querySelector(
+    "#start-screen, #start-page, .start-screen, .start-page"
+  );
+
+  const gameScreen = document.querySelector(
+    "#game-screen, #game-page, .game-screen, .game-page"
+  );
+
+  if (startScreen) {
+    startScreen.style.display = "block";
+  }
+
+  if (gameScreen) {
+    gameScreen.style.display = "none";
+  }
+}
+
+
+// =====================================
 // 화면 정보 업데이트
 // =====================================
 
 function updateGameInfo() {
+
   scoreElement.textContent = score;
   levelElement.textContent = level;
   livesElement.textContent = "❤️".repeat(Math.max(0, lives));
+
 }
 
 
@@ -67,6 +122,7 @@ function updateGameInfo() {
 // =====================================
 
 function resetGame() {
+
   score = 0;
   level = 1;
   lives = 3;
@@ -75,6 +131,7 @@ function resetGame() {
 
   gestureHistory = [];
   stableGesture = "";
+  currentGesture = "";
 
   handPoint = null;
   previousHandPoint = null;
@@ -87,33 +144,86 @@ function resetGame() {
   updateGameInfo();
 
   statusElement.textContent = "보자기를 보여주세요!";
+
 }
 
 
 // =====================================
-// 시작 버튼
+// 게임 시작
 // =====================================
 
 async function startGame() {
 
-  // 초기화 도중 중복 클릭 방지
+  console.log("게임 시작 함수 실행");
+
+  if (!canvas || !ctx || !startButton ||
+      !statusElement || !cameraArea) {
+
+    console.error("필수 HTML 요소를 찾을 수 없습니다.");
+
+    alert(
+      "게임 화면의 HTML 요소를 찾을 수 없습니다. " +
+      "index.html의 id를 확인해 주세요."
+    );
+
+    return;
+  }
+
+  if (typeof tmImage === "undefined") {
+
+    statusElement.textContent =
+      "Teachable Machine 라이브러리를 불러오지 못했습니다.";
+
+    console.error("tmImage 라이브러리 오류");
+
+    return;
+  }
+
+  if (typeof Hands === "undefined") {
+
+    statusElement.textContent =
+      "MediaPipe Hands 라이브러리를 불러오지 못했습니다.";
+
+    console.error("MediaPipe Hands 라이브러리 오류");
+
+    return;
+  }
+
   if (isInitializing) return;
 
-  // 카메라가 이미 준비된 상태라면 재시작
+  // 이미 카메라가 준비되어 있다면 재시작
   if (cameraReady) {
+
+    showGameScreen();
+
     resetGame();
+
+    startButton.textContent = "게임 다시 시작";
+
+    if (!isRunning) {
+
+      isRunning = true;
+
+      requestAnimationFrame(gameLoop);
+
+      predictionLoop();
+    }
+
     return;
   }
 
   isInitializing = true;
+
   startButton.disabled = true;
 
   statusElement.textContent = "게임 준비 중...";
 
   try {
 
-    // 1. Teachable Machine 모델 불러오기
-    statusElement.textContent = "AI 모델 불러오는 중...";
+    // 1. AI 모델 불러오기
+
+    statusElement.textContent =
+      "AI 모델 불러오는 중...";
 
     model = await tmImage.load(
       MODEL_URL + "model.json",
@@ -121,53 +231,79 @@ async function startGame() {
     );
 
     // 2. 카메라 연결
-    statusElement.textContent = "카메라 연결 중...";
+
+    statusElement.textContent =
+      "카메라 연결 중...";
 
     webcam = new tmImage.Webcam(400, 300, true);
 
     await webcam.setup();
+
     await webcam.play();
 
     cameraArea.innerHTML = "";
+
+    webcam.canvas.style.width = "100%";
+    webcam.canvas.style.maxWidth = "400px";
+    webcam.canvas.style.height = "auto";
+    webcam.canvas.style.display = "block";
+
     cameraArea.appendChild(webcam.canvas);
 
     // 3. MediaPipe 손 추적 설정
-    statusElement.textContent = "손 추적 준비 중...";
+
+    statusElement.textContent =
+      "손 추적 준비 중...";
 
     hands = new Hands({
+
       locateFile: function(file) {
-        return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/" + file;
+
+        return (
+          "https://cdn.jsdelivr.net/npm/@mediapipe/hands/" +
+          file
+        );
+
       }
+
     });
 
     hands.setOptions({
+
       maxNumHands: 1,
       modelComplexity: 1,
       minDetectionConfidence: 0.65,
       minTrackingConfidence: 0.65
+
     });
 
     hands.onResults(handleHandResults);
 
-    // 초기화 완료
+    // 4. 게임 시작
+
     cameraReady = true;
     isRunning = true;
 
     resetGame();
 
+    showGameScreen();
+
     startButton.textContent = "게임 다시 시작";
 
     statusElement.textContent = "게임 시작!";
 
-    // 반복 실행 시작
     requestAnimationFrame(gameLoop);
+
     predictionLoop();
+
+    console.log("게임 초기화 완료");
 
   } catch (error) {
 
     console.error("게임 시작 오류:", error);
 
-    statusElement.textContent = "시작 실패: " + error.message;
+    statusElement.textContent =
+      "시작 실패: " + error.message;
 
     alert(
       "게임 시작에 실패했습니다.\n\n" +
@@ -175,29 +311,77 @@ async function startGame() {
       "\n\n카메라 권한과 인터넷 연결을 확인해 주세요."
     );
 
-    // 실패하면 다시 시작할 수 있도록 상태 초기화
     isRunning = false;
     cameraReady = false;
+    gameActive = false;
+
+    if (webcam && webcam.stop) {
+
+      try {
+
+        webcam.stop();
+
+      } catch (stopError) {
+
+        console.warn("카메라 정리 오류:", stopError);
+
+      }
+
+    }
+
+    webcam = null;
+    model = null;
+    hands = null;
 
     startButton.textContent = "다시 시작";
-    cameraArea.innerHTML = "<p>카메라 연결에 실패했습니다.</p>";
+
+    cameraArea.innerHTML =
+      "<p>카메라 연결에 실패했습니다.</p>";
 
   } finally {
 
     isInitializing = false;
+
     startButton.disabled = false;
 
   }
+
 }
 
 
 // =====================================
-// 버튼 이벤트 연결
+// 시작 버튼 이벤트
 // =====================================
 
 startButton.addEventListener("click", function() {
-  startGame();
+
+  console.log("게임 시작 버튼 클릭 성공");
+
+  startGame().catch(error => {
+
+    console.error("예기치 않은 시작 오류:", error);
+
+    statusElement.textContent =
+      "게임 시작 오류: " + error.message;
+
+  });
+
 });
+
+
+// 페이지 최초 진입 시 시작 화면 유지
+if (
+  document.querySelector(
+    "#start-screen, #start-page, .start-screen, .start-page"
+  ) &&
+  document.querySelector(
+    "#game-screen, #game-page, .game-screen, .game-page"
+  )
+) {
+
+  showStartScreen();
+
+}
 
 
 // =====================================
@@ -214,7 +398,8 @@ async function predictionLoop() {
 
     webcam.update();
 
-    const predictions = await model.predict(webcam.canvas);
+    const predictions =
+      await model.predict(webcam.canvas);
 
     const best = predictions.reduce((a, b) =>
       a.probability > b.probability ? a : b
@@ -244,8 +429,11 @@ async function predictionLoop() {
   }
 
   if (isRunning) {
+
     setTimeout(predictionLoop, 120);
+
   }
+
 }
 
 
@@ -255,30 +443,43 @@ async function predictionLoop() {
 
 function updateStableGesture(name, probability) {
 
-  const detected = probability >= 0.75 ? name : "";
+  const detected =
+    probability >= 0.75 ? name : "";
 
   gestureHistory.push(detected);
 
   if (gestureHistory.length > 5) {
+
     gestureHistory.shift();
+
   }
 
   const counts = {};
 
   gestureHistory.forEach(item => {
+
     if (item) {
+
       counts[item] = (counts[item] || 0) + 1;
+
     }
+
   });
 
   stableGesture = "";
 
   for (const name in counts) {
+
     if (counts[name] >= 4) {
+
       stableGesture = name;
+
       break;
+
     }
+
   }
+
 }
 
 
@@ -298,17 +499,19 @@ function handleHandResults(results) {
     previousHandPoint = null;
 
     return;
+
   }
 
-  const landmarks = results.multiHandLandmarks[0];
+  const landmarks =
+    results.multiHandLandmarks[0];
 
-  // 손바닥 중심점
   const palm = landmarks[9];
 
-  // 카메라 영상은 좌우 반전되므로 x축도 반전
   const point = {
+
     x: (1 - palm.x) * canvas.width,
     y: palm.y * canvas.height
+
   };
 
   handPoint = point;
@@ -329,13 +532,19 @@ function handleHandResults(results) {
       Date.now() - lastCutTime > 70
     ) {
 
-      sliceFruit(previousHandPoint, point);
+      sliceFruit(
+        previousHandPoint,
+        point
+      );
 
       lastCutTime = Date.now();
+
     }
+
   }
 
   previousHandPoint = { ...point };
+
 }
 
 
@@ -348,15 +557,19 @@ function createFruit() {
   const bomb = Math.random() < 0.20;
 
   const fruitTypes = [
-    "🍉", "🍊", "🍇", "🍓", "🍍", "🍌", "🍒"
+    "🍉", "🍊", "🍇", "🍓",
+    "🍍", "🍌", "🍒"
   ];
 
   fruits.push({
 
-    x: 60 + Math.random() * 680,
-    y: 390,
+    x: 60 + Math.random() *
+      Math.max(1, canvas.width - 120),
+
+    y: canvas.height - 10,
 
     speedX: (Math.random() - 0.5) * 3,
+
     speedY: -8 - Math.random() * 3,
 
     gravity: 0.16,
@@ -375,6 +588,7 @@ function createFruit() {
     bomb: bomb
 
   });
+
 }
 
 
@@ -387,29 +601,38 @@ function distanceToSegment(point, start, end) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
 
-  const lengthSquared = dx * dx + dy * dy;
+  const lengthSquared =
+    dx * dx + dy * dy;
 
   if (lengthSquared === 0) {
+
     return Math.hypot(
       point.x - start.x,
       point.y - start.y
     );
+
   }
 
   let t = (
+
     (point.x - start.x) * dx +
     (point.y - start.y) * dy
+
   ) / lengthSquared;
 
   t = Math.max(0, Math.min(1, t));
 
-  const nearestX = start.x + t * dx;
-  const nearestY = start.y + t * dy;
+  const nearestX =
+    start.x + t * dx;
+
+  const nearestY =
+    start.y + t * dy;
 
   return Math.hypot(
     point.x - nearestX,
     point.y - nearestY
   );
+
 }
 
 
@@ -419,7 +642,11 @@ function distanceToSegment(point, start, end) {
 
 function sliceFruit(start, end) {
 
-  for (let i = fruits.length - 1; i >= 0; i--) {
+  for (
+    let i = fruits.length - 1;
+    i >= 0;
+    i--
+  ) {
 
     const fruit = fruits[i];
 
@@ -438,7 +665,9 @@ function sliceFruit(start, end) {
         updateGameInfo();
 
         if (lives <= 0) {
+
           endGame();
+
         }
 
       } else {
@@ -452,8 +681,11 @@ function sliceFruit(start, end) {
       }
 
       fruits.splice(i, 1);
+
     }
+
   }
+
 }
 
 
@@ -479,7 +711,8 @@ function endGame() {
 function drawGame() {
 
   ctx.clearRect(
-    0, 0,
+    0,
+    0,
     canvas.width,
     canvas.height
   );
@@ -487,7 +720,8 @@ function drawGame() {
   ctx.fillStyle = "#101827";
 
   ctx.fillRect(
-    0, 0,
+    0,
+    0,
     canvas.width,
     canvas.height
   );
@@ -495,7 +729,9 @@ function drawGame() {
   if (!gameActive) {
 
     ctx.fillStyle = "white";
+
     ctx.font = "bold 42px Arial";
+
     ctx.textAlign = "center";
 
     ctx.fillText(
@@ -505,27 +741,39 @@ function drawGame() {
     );
 
     return;
+
   }
 
   // 과일 생성
+
   if (Date.now() - lastSpawn > 1100) {
 
     createFruit();
 
     lastSpawn = Date.now();
+
   }
 
   // 과일 이동 및 그리기
-  for (let i = fruits.length - 1; i >= 0; i--) {
+
+  for (
+    let i = fruits.length - 1;
+    i >= 0;
+    i--
+  ) {
 
     const fruit = fruits[i];
 
     fruit.x += fruit.speedX;
+
     fruit.y += fruit.speedY;
+
     fruit.speedY += fruit.gravity;
 
     ctx.font = `${64 * fruit.size}px Arial`;
+
     ctx.textAlign = "center";
+
     ctx.textBaseline = "middle";
 
     ctx.fillText(
@@ -543,14 +791,19 @@ function drawGame() {
         fruit.x + 24,
         fruit.y - 25
       );
+
     }
 
-    if (fruit.y > 460) {
+    if (fruit.y > canvas.height + 80) {
+
       fruits.splice(i, 1);
+
     }
+
   }
 
   // 손 위치 표시
+
   if (handPoint) {
 
     ctx.beginPath();
@@ -571,9 +824,13 @@ function drawGame() {
     ctx.fill();
 
     ctx.strokeStyle = "#ffffff";
+
     ctx.lineWidth = 3;
+
     ctx.stroke();
+
   }
+
 }
 
 
@@ -592,7 +849,9 @@ async function gameLoop() {
     try {
 
       await hands.send({
+
         image: webcam.canvas
+
       });
 
     } catch (error) {
@@ -604,11 +863,15 @@ async function gameLoop() {
       trackingBusy = false;
 
     }
+
   }
 
   drawGame();
 
   if (isRunning) {
+
     requestAnimationFrame(gameLoop);
+
   }
+
 }
